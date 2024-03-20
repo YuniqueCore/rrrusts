@@ -1,30 +1,38 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Ok, Result};
 use std::{
-    fs,
-    path::{Path, PathBuf},
+    fs, io::Write, path::{Path, PathBuf}
 };
+
+use super::tasks::TodoRecord;
 
 pub const DB_USER: &str = "root";
 pub const DB_DIR_PATH: &str = "./db";
 
 #[derive(Debug)]
-pub struct DBConfig<'a> {
-    pub db_dir: &'a Path,
+pub struct DBConfig {
+    pub db_dir: Box<PathBuf>,
     pub db_user: String,
 }
 
-impl<'a> DBConfig<'a> {
-    pub fn new(db_path: &'a Path, db_user: String) -> Self {
+impl DBConfig{
+    pub fn new<P: AsRef<Path>>(db_path: P, db_user: String) -> Self {
         DBConfig {
-            db_dir: db_path,
+            db_dir: Box::new(db_path.as_ref().to_path_buf()),
             db_user,
         }
     }
 
-    pub fn init(&self) {
-        if !file_exists(&self.db_dir) {
-            let _ = create_file(&self.db_dir)
-                .with_context(|| format!("Failed to create file: {:?}", &self.db_dir));
+    pub fn init(&self)-> Result<fs::File> {
+        match self.get_db_path() {
+            Result::Ok(path) => {
+                if !file_exists(&path)
+                {
+                    Ok(fs::File::create(path)?)
+                }else {
+                    Ok(fs::File::open(path)?)
+                }
+            },
+            Result::Err(e) => bail!(e),
         }
     }
 
@@ -35,16 +43,37 @@ impl<'a> DBConfig<'a> {
     }
 }
 
-fn file_exists<T: AsRef<Path>>(path: T) -> bool {
-    if let Err(e) = fs::metadata(path) {
+fn file_exists<T: AsRef<Path>>(path: &T) -> bool {
+    if let Err(_) = fs::metadata(path) {
         return false;
     }
     true
 }
 
-fn create_file<T: AsRef<Path>>(path: T) -> Result<(), anyhow::Error> {
-    if !file_exists(path) {
-        fs::File::create(path)?;
+pub struct DBOperator{
+    pub db:fs::File,
+}
+
+impl DBOperator {
+    fn connect(dbconfig:&DBConfig) -> Result<Self>  {
+        match dbconfig.init() {
+            Result::Ok(db) => Ok(Self{db}),
+            Result::Err(e)=> Err(e),
+        }
     }
-    Ok(())
+
+    fn add_record(&mut self,record:TodoRecord)->Result<()>{
+        self.db.write(b"buf")?;
+        Ok(())
+    }
+
+    fn done_record(&mut self,record:TodoRecord)->Result<()>{
+        Ok(())
+    }
+
+    fn close(&mut self)->Result<()>{
+        self.db.flush()?;
+        self.db.sync_all()?;
+        Ok(())
+    }
 }
