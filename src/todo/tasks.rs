@@ -1,9 +1,8 @@
-
 use chrono::{DateTime, Local};
 
 #[derive(Debug)]
 pub struct TodoRecord {
-    pub id:u32,
+    pub id: u32,
     pub title: String,
     pub description: Option<String>,
     pub due_date: Option<String>,
@@ -15,9 +14,14 @@ pub struct TodoRecord {
 }
 
 impl TodoRecord {
+    pub fn get_csv_header() -> String {
+        "id,title,description,due_date,priority,status,created_at,updated_at,completed_at\n"
+            .to_string()
+    }
+
     pub fn to_csv_string(&self) -> String {
         format!(
-            "\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"",
+            "\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
             self.id,
             self.title.trim(),
             self.description.clone().unwrap_or(String::new()).trim(),
@@ -32,18 +36,18 @@ impl TodoRecord {
 }
 
 impl TodoRecord {
-    pub fn new(id:u32,title:String,description:Option<String>,priority:u8) -> TodoRecord{
-        let now =  Self::current_time_string();
-        TodoRecord{
+    pub fn new(id: u32, title: String, description: Option<String>, priority: u8) -> TodoRecord {
+        let now = Self::current_time_string();
+        TodoRecord {
             id,
             title,
             description,
             priority,
-            due_date:None,
-            status:false,
-            created_at:now.clone(),
-            updated_at:now.clone(),
-            completed_at:None
+            due_date: None,
+            status: false,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            completed_at: None,
         }
     }
 
