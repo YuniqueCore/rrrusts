@@ -1,5 +1,13 @@
 {
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml"
-    ]
+    ],
+    "Codegeex.CandidateNum": "2 (中)",
+    "Codegeex.Comment.LanguagePreference": "English",
+    "Codegeex.SidebarUI.LanguagePreference": "中文",
+    "Codegeex.Chat.LanguagePreference": "中文",
+    "Codegeex.CompletionModel": "CodeGeeX Pro[Beta]",
+    "Codegeex.UseSimilarFileForPrompt": true,
+    "Codegeex.Privacy": true,
+    "Codegeex.CommitMessageStyle": "ConventionalCommits"
 }
