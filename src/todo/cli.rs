@@ -41,11 +41,11 @@ pub enum Verbs {
     #[command(about = "Mark a task as done")]
     #[command(visible_aliases = & ["rm"])]
     Done {
-        #[arg(short, long)]
-        title: Option<String>,
-
         #[arg(short, long, required = true)]
         id: Option<u32>,
+
+        #[arg(short, long)]
+        title: Option<String>,
     },
 
     #[command(about = "List all tasks")]
