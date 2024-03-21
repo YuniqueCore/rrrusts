@@ -6,7 +6,7 @@ use std::{
 use anyhow::{bail, Context};
 use chrono::{DateTime, Local};
 
-use super::dbguard::DBConfig;
+use super::{dbguard::DBConfig, utils};
 
 #[derive(Debug)]
 pub struct TodoRecord {
@@ -20,7 +20,8 @@ pub struct TodoRecord {
     updated_at: String,
     completed_at: Option<String>,
 }
-const HEADER_MAP: &[(&str, u8)] = &[
+
+pub const HEADER_MAP: &[(&str, u8)] = &[
     ("id", 0),
     ("title", 1),
     ("description", 2),
@@ -36,11 +37,6 @@ pub fn get_header_index(header: &str) -> Option<u8> {
     HEADER_MAP
         .iter()
         .find_map(|(h, i)| if *h == header { Some(*i) } else { None })
-}
-
-pub fn current_time_string() -> String {
-    let now: DateTime<Local> = Local::now();
-    now.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
 impl TodoRecord {
@@ -72,12 +68,12 @@ impl TodoRecord {
         };
         let status = values[5].parse::<bool>()?;
         let created_at = if values[6].is_empty() {
-            current_time_string()
+            utils::current_time_string()
         } else {
             values[6].to_string()
         };
         let updated_at = if values[7].is_empty() {
-            current_time_string()
+            utils::current_time_string()
         } else {
             values[7].to_string()
         };
@@ -156,7 +152,7 @@ impl TodoRecord {
 
 impl TodoRecord {
     pub fn new(id: u32, title: String, description: Option<String>, priority: u8) -> TodoRecord {
-        let now = current_time_string();
+        let now = utils::current_time_string();
         TodoRecord {
             id,
             title,

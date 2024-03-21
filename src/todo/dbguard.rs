@@ -6,7 +6,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::tasks::{current_time_string, get_header_index, TodoRecord};
+use super::{
+    tasks::{self, TodoRecord},
+    utils,
+};
 
 pub const DB_USER: &str = "root";
 pub const DB_DIR_PATH: &str = "./db";
@@ -30,7 +33,7 @@ impl DBConfig {
     pub fn init(&self) -> Result<fs::File> {
         match self.get_db_path() {
             Result::Ok(path) => {
-                if !file_exists(&path) {
+                if !utils::file_exists(&path) {
                     let mut f = fs::File::create(path)?;
                     f.write(self.db_csv_data_header.as_bytes())?;
                     Ok(f)
@@ -47,13 +50,6 @@ impl DBConfig {
         db_path.push(format!(".{}", self.db_user));
         Ok(db_path)
     }
-}
-
-fn file_exists<T: AsRef<Path>>(path: &T) -> bool {
-    if let Err(_) = fs::metadata(path) {
-        return false;
-    }
-    true
 }
 
 pub struct DBOperator {
@@ -88,12 +84,13 @@ impl DBOperator {
         let mut writer = BufWriter::new(temp_file);
 
         let mut found = false;
-        let now_time = current_time_string();
-        let id_col = get_header_index("id").or(Some(0)).unwrap()as usize;
-        let title_col = get_header_index("title").or(Some(1)).unwrap()as usize;
-        let status_col = get_header_index("status").or(Some(5)).unwrap()as usize;
-        let updated_at_col = get_header_index("updated_at").or(Some(7)).unwrap()as usize;
-        let completed_at_col = get_header_index("completed_at").or(Some(8)).unwrap()as usize;
+        let now_time = utils::current_time_string();
+        let id_col = tasks::get_header_index("id").or(Some(0)).unwrap() as usize;
+        let title_col = tasks::get_header_index("title").or(Some(1)).unwrap() as usize;
+        let status_col = tasks::get_header_index("status").or(Some(5)).unwrap() as usize;
+        let updated_at_col = tasks::get_header_index("updated_at").or(Some(7)).unwrap() as usize;
+        let completed_at_col =
+            tasks::get_header_index("completed_at").or(Some(8)).unwrap() as usize;
 
         for line in reader.lines() {
             let old_line = line?;
@@ -105,11 +102,11 @@ impl DBOperator {
                         found = true;
                         if let Some(status) = data_array.get_mut(status_col) {
                             *status = "Done";
-                            
-                            if let Some(update) = data_array.get_mut(updated_at_col){
+
+                            if let Some(update) = data_array.get_mut(updated_at_col) {
                                 *update = &now_time;
                             }
-                            if let Some(completed) = data_array.get_mut(completed_at_col){
+                            if let Some(completed) = data_array.get_mut(completed_at_col) {
                                 *completed = &now_time;
                             }
                         }
@@ -122,10 +119,10 @@ impl DBOperator {
                     found = true;
                     if let Some(status) = data_array.get_mut(status_col) {
                         *status = "Done";
-                        if let Some(update) = data_array.get_mut(updated_at_col){
+                        if let Some(update) = data_array.get_mut(updated_at_col) {
                             *update = &now_time;
                         }
-                        if let Some(completed) = data_array.get_mut(completed_at_col){
+                        if let Some(completed) = data_array.get_mut(completed_at_col) {
                             *completed = &now_time;
                         }
                     }
@@ -146,31 +143,21 @@ impl DBOperator {
         Ok(())
     }
 
-    pub fn list_records(&mut self,mut writer: impl std::io::Write) -> Result<()>{
+    pub fn list_records(&mut self, mut writer: impl std::io::Write) -> Result<()> {
         let reader = BufReader::new(&self.db);
         for line in reader.lines() {
-            match line{
+            match line {
                 Result::Ok(l) => {
-                    writeln!(writer, "{}", l)?; 
-                },
-                Result::Err(e) => bail!("Fail to read lines from db: {:?}/nError: {}",self.db_path,e),
+                    writeln!(writer, "{}", l)?;
+                }
+                Result::Err(e) => bail!(
+                    "Fail to read lines from db: {:?}/nError: {}",
+                    self.db_path,
+                    e
+                ),
             }
         }
         Result::Ok(())
-    }
-
-    // fn col_index_of(&self, header_name: &str, default_value: usize) -> usize {
-    //     match self.db_headers().position(|name| name.trim_start_matches('"').trim_end_matches('"') == header_name) {
-    //         Some(index) => index,
-    //         None => {
-    //             eprintln!("Warning: '{}' column not found in the header.", header_name);
-    //             default_value
-    //         }
-    //     }
-    // }
-
-    fn db_headers(&self) -> std::str::Split<'_, char>  {
-        self.db_csv_data_header.trim().split(',')
     }
 
     pub fn close(&mut self) -> Result<()> {
