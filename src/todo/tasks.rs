@@ -1,8 +1,6 @@
-use std::{collections::{hash_map, HashMap}, fs};
+use anyhow::bail;
 
-use chrono::{DateTime, Local};
-
-use super::dbguard::DBConfig;
+use super::utils;
 
 #[derive(Debug)]
 pub struct TodoRecord {
@@ -16,7 +14,8 @@ pub struct TodoRecord {
     updated_at: String,
     completed_at: Option<String>,
 }
-const HEADER_MAP: &[(&str, u8)] = &[
+
+pub const HEADER_MAP: &[(&str, u8)] = &[
     ("id", 0),
     ("title", 1),
     ("description", 2),
@@ -29,24 +28,87 @@ const HEADER_MAP: &[(&str, u8)] = &[
 ];
 
 pub fn get_header_index(header: &str) -> Option<u8> {
-    HEADER_MAP.iter().find_map(|(h, i)| if *h == header { Some(*i) } else { None })
-}
-
-pub fn current_time_string() -> String {
-    let now: DateTime<Local> = Local::now();
-    now.format("%Y-%m-%d %H:%M:%S").to_string()
+    HEADER_MAP
+        .iter()
+        .find_map(|(h, i)| if *h == header { Some(*i) } else { None })
 }
 
 impl TodoRecord {
+    pub const DEFAULT_PRIORITY: u8 = 3;
+
+    pub fn parse_record_line(line: &str) -> Result<TodoRecord, anyhow::Error> {
+        let values: Vec<&str> = line
+            .split(',')
+            .filter_map(|v| v.strip_prefix('"').and_then(|s| s.strip_suffix('"')))
+            .collect();
+
+        if values.len() < 9 {
+            bail!("Input line does not contain enough fields".to_string());
+        }
+
+        let id = values[0].parse::<u32>()?;
+        let title = values[1].to_string();
+        let description = if values[2].is_empty() {
+            None
+        } else {
+            Some(values[2].to_string())
+        };
+        let due_date = if values[3].is_empty() {
+            None
+        } else {
+            Some(values[3].to_string())
+        };
+        let priority = if values[4].is_empty() {
+            Self::DEFAULT_PRIORITY
+        } else {
+            values[4].parse::<u8>()?
+        };
+        let status = if values[5].contains("Done") {
+            true
+        } else {
+            false
+        };
+        let created_at = if values[6].is_empty() {
+            utils::current_time_string()
+        } else {
+            values[6].to_string()
+        };
+        let updated_at = if values[7].is_empty() {
+            utils::current_time_string()
+        } else {
+            values[7].to_string()
+        };
+        let completed_at = if values[8].is_empty() {
+            None
+        } else {
+            Some(values[8].to_string())
+        };
+
+        Ok(TodoRecord {
+            id,
+            title,
+            description,
+            due_date,
+            priority,
+            status,
+            created_at,
+            updated_at,
+            completed_at,
+        })
+    }
+
     pub fn get_csv_header() -> String {
-        let headers: Vec<String> = HEADER_MAP.iter().map(|(h, _)| format!("\"{}\"", *h)).collect();
+        let headers: Vec<String> = HEADER_MAP
+            .iter()
+            .map(|(h, _)| format!("\"{}\"", *h))
+            .collect();
         let header_str = headers.join(",");
         format!("{}\n", header_str)
     }
 
     pub fn to_csv_string(&self) -> String {
         format!(
-            "\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+            "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
             self.id,
             self.title.trim(),
             self.description.clone().unwrap_or(String::new()).trim(),
@@ -59,21 +121,39 @@ impl TodoRecord {
         )
     }
 
-    pub fn get_newest_id(dbconf:&DBConfig){
-        let mut reader = fs::OpenOptions::read(true)
-        .open(&dbconf.get_db_path().t);
+    pub fn to_list_fmt(&self) -> String {
+        let status_emoji = if self.status { "✅" } else { "🔲" };
+        let priority_emoji = utils::get_priority_emoji(self.priority);
+
+        format!(
+            "📋 No.{}: {} | Desc: {} - Due Date: {} - Priority: {} - Status: {} | Start: {} - End: {}\n",
+            self.id,
+            self.title.trim(),
+            self.description.clone().unwrap_or(String::new()).trim(),
+            self.due_date.clone().unwrap_or(String::new()).trim(),
+            priority_emoji,
+            status_emoji,
+            self.created_at.trim(),
+            self.completed_at.clone().unwrap_or(String::new()).trim(),
+        )
     }
 }
 
 impl TodoRecord {
-    pub fn new(id: u32, title: String, description: Option<String>, priority: u8) -> TodoRecord {
-        let now = current_time_string();
+    pub fn new(
+        id: u32,
+        title: String,
+        description: Option<String>,
+        priority: u8,
+        due_date: Option<String>,
+    ) -> TodoRecord {
+        let now = utils::current_time_string();
         TodoRecord {
             id,
             title,
             description,
             priority,
-            due_date: None,
+            due_date,
             status: false,
             created_at: now.clone(),
             updated_at: now.clone(),
