@@ -1,5 +1,5 @@
 use clap::Parser;
-use rrrust::todo::{
+use rrrusts::todo::{
     cli::{Cli, Verbs},
     dbguard::{DBConfig, DBOperator},
     tasks::TodoRecord,
@@ -10,11 +10,13 @@ fn main() {
     let db_user = String::from("root");
     let dbconf = DBConfig::new("./", db_user, db_header);
 
+    let mut db_op = DBOperator::connect(&dbconf).unwrap();
+
     let args = Cli::parse();
 
     match args.command {
         Verbs::About => {
-            println!("A yunique rust todo application was built to construct world.");
+            rrrusts::todo::cli::cli_about();
         }
         Verbs::Add {
             title,
@@ -23,10 +25,24 @@ fn main() {
             priority,
             done,
         } => {
-            let mut db_op = DBOperator::connect(&dbconf).unwrap();
-            db_op.add_record(TodoRecord::new(0, title, description, priority));
+            rrrusts::todo::cli::cli_add(
+                dbconf,
+                &mut db_op,
+                title,
+                description,
+                priority,
+                due_date,
+                done,
+            );
         }
-        Verbs::Done { id, title } => todo!(),
-        Verbs::List => {}
+        Verbs::Done { id, title } => {
+            rrrusts::todo::cli::cli_done(id, &mut db_op, title);
+        }
+        Verbs::Remove { id, title } => {
+            rrrusts::todo::cli::cli_remove(id, &mut db_op, title);
+        }
+        Verbs::List => {
+            rrrusts::todo::cli::cli_list(db_op);
+        }
     }
 }

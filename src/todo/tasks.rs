@@ -1,12 +1,6 @@
-use std::{
-    fs,
-    io::{BufRead, BufReader},
-};
+use anyhow::bail;
 
-use anyhow::{bail, Context};
-use chrono::{DateTime, Local};
-
-use super::{dbguard::DBConfig, utils};
+use super::utils;
 
 #[derive(Debug)]
 pub struct TodoRecord {
@@ -40,10 +34,13 @@ pub fn get_header_index(header: &str) -> Option<u8> {
 }
 
 impl TodoRecord {
-    const DEFAULT_PRIORITY: u8 = 3;
+    pub const DEFAULT_PRIORITY: u8 = 3;
 
     pub fn parse_record_line(line: &str) -> Result<TodoRecord, anyhow::Error> {
-        let values: Vec<&str> = line.split(',').collect();
+        let values: Vec<&str> = line
+            .split(',')
+            .filter_map(|v| v.strip_prefix('"').and_then(|s| s.strip_suffix('"')))
+            .collect();
 
         if values.len() < 9 {
             bail!("Input line does not contain enough fields".to_string());
@@ -66,7 +63,11 @@ impl TodoRecord {
         } else {
             values[4].parse::<u8>()?
         };
-        let status = values[5].parse::<bool>()?;
+        let status = if values[5].contains("Done") {
+            true
+        } else {
+            false
+        };
         let created_at = if values[6].is_empty() {
             utils::current_time_string()
         } else {
@@ -107,7 +108,7 @@ impl TodoRecord {
 
     pub fn to_csv_string(&self) -> String {
         format!(
-            "\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+            "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
             self.id,
             self.title.trim(),
             self.description.clone().unwrap_or(String::new()).trim(),
@@ -120,45 +121,39 @@ impl TodoRecord {
         )
     }
 
-    pub fn get_newest_id(dbconf: &DBConfig) -> Result<u32, anyhow::Error> {
-        let db_path = dbconf.get_db_path().context("Failed to find db file")?;
-        let db = fs::File::open(&db_path).context("Failed to open db file")?;
-        let reader = BufReader::new(&db);
+    pub fn to_list_fmt(&self) -> String {
+        let status_emoji = if self.status { "✅" } else { "🔲" };
+        let priority_emoji = utils::get_priority_emoji(self.priority);
 
-        let mut records: Vec<TodoRecord> = Vec::new();
-        let mut parse_errors = Vec::new();
-        for line in reader.lines() {
-            let line = line.context("Failed to read line from db file")?;
-            if !line.is_empty() {
-                let record = Self::parse_record_line(&line).map_err(|e| {
-                    parse_errors.push(format!("Error parsing record: {}", e));
-                    e
-                })?;
-                records.push(record);
-            }
-        }
-        if !parse_errors.is_empty() {
-            bail!(parse_errors.join("\n"));
-        }
-
-        let next_id = match records.iter().map(|r| r.id).max() {
-            Some(max_id) => max_id + 1,
-            None => 1, // 如果没有记录，从 1 开始
-        };
-
-        Ok(next_id)
+        format!(
+            "📋 No.{}: {} | Desc: {} - Due Date: {} - Priority: {} - Status: {} | Start: {} - End: {}\n",
+            self.id,
+            self.title.trim(),
+            self.description.clone().unwrap_or(String::new()).trim(),
+            self.due_date.clone().unwrap_or(String::new()).trim(),
+            priority_emoji,
+            status_emoji,
+            self.created_at.trim(),
+            self.completed_at.clone().unwrap_or(String::new()).trim(),
+        )
     }
 }
 
 impl TodoRecord {
-    pub fn new(id: u32, title: String, description: Option<String>, priority: u8) -> TodoRecord {
+    pub fn new(
+        id: u32,
+        title: String,
+        description: Option<String>,
+        priority: u8,
+        due_date: Option<String>,
+    ) -> TodoRecord {
         let now = utils::current_time_string();
         TodoRecord {
             id,
             title,
             description,
             priority,
-            due_date: None,
+            due_date,
             status: false,
             created_at: now.clone(),
             updated_at: now.clone(),
